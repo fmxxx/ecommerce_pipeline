@@ -1,0 +1,10 @@
+# Python cache
+.pytest_cache/
+__pycache__/
+*.pyc
+# .env files
+.env
+#data raw
+data/raw/
+
+
