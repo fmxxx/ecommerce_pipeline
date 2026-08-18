@@ -4,7 +4,9 @@ __pycache__/
 *.pyc
 # .env files
 .env
-#data raw
+#raw data
 data/raw/
+# documentacao interna (planejamento, anotações, etc.)
+docs/internal
 
 
