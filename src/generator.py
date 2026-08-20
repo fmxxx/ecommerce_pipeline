@@ -1,6 +1,7 @@
 from faker import Faker
 import uuid
 import csv
+import random
 from pathlib import Path
 from datetime import datetime
 
@@ -71,10 +72,16 @@ class DataGenerator:
 
                 name = self.fake.sentence(nb_words=4)[:-1]
                 category = self.fake.word()
-                cost_price = self.fake.pyfloat(left_digits=3, right_digits=2, positive=True)
-                sale_price = self.fake.pyfloat(left_digits=3, right_digits=2, positive=True)
+                
+                # cost_price com uma distribuição normal (mean=150, std=50)
+                cost_price = max(10, round(random.gauss(150, 50), 2))
+                
+                # sale_price calculado a partir de cost_price com margem de lucro aleatória (1.15 to 1.5)
+                profit_margin = random.uniform(1.15, 1.5)
+                sale_price = round(cost_price * profit_margin, 2)
+                
                 text_description = self.fake.text()
-                specifications = None  # Talvez adicionar arquivos JSONB no futuro para d
+                specifications = None  # Talvez adicionar arquivos JSONB no futuro para especificacoes
 
                 writer.writerow([product_id, name, category, cost_price, sale_price, text_description, specifications])
 
@@ -88,7 +95,10 @@ class DataGenerator:
             for _ in range(count):
                 user_id = self.fake.random_element(user_ids)
                 product_id = self.fake.random_element(product_ids)
-                quantity = self.fake.random_int(min=1, max=10)
+                
+                # quantity com distribuicao normal (mean=3, std=2), entre 1 e 10
+                quantity = max(1, min(10, int(round(random.gauss(3, 2)))))
+                
                 order_date = self.fake.date_time_between(start_date='-1y').isoformat()
 
                 writer.writerow([str(uuid.uuid4()), user_id, product_id, order_date, quantity])
@@ -110,7 +120,10 @@ class DataGenerator:
                     continue
                 
                 used_combinations.add(combination)
-                rating = self.fake.random_int(min=1, max=5)
+                
+                # Rating com distribuicao normal (mean=4, std=1), entre 1 e 5
+                rating = max(1, min(5, int(round(random.gauss(4, 1)))))
+                
                 comment = self.fake.text()
                 publication_date = self.fake.date_time_between(start_date='-6m').isoformat()
 
