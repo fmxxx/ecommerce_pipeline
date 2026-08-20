@@ -29,43 +29,67 @@ def copy_from_csv(conn, table_name, csv_path, columns=None, on_conflict=False):
         csv_path: Path to CSV file
         columns: Optional list of column names
         on_conflict: If True, use INSERT with ON CONFLICT DO NOTHING instead of COPY
+    
+    Retorna True se a importacao nao teve errors, caso contrário, falso
     """
+    has_errors = False
+    
     if on_conflict:
     # usar INSERT com ON CONFLICT DO NOTHING para tabelas com UNIQUE
         import csv as csv_module
         with open(csv_path, 'r') as f:
             reader = csv_module.DictReader(f)
-            with conn.cursor() as cursor:
-                for row in reader:
+            for row in reader:
+                try:
                     if columns:
                         column_str = ', '.join(columns)
                         placeholders = ', '.join(['%s'] * len(columns))
-                        values = [row[col] for col in columns]
+                        values = []
+                        for col in columns:
+                            val = row[col]
+                            if val == '' or val == 'None':
+                                values.append(None)
+                            else:
+                                values.append(val)
                     else:
                         columns_list = list(row.keys())
                         column_str = ', '.join(columns_list)
                         placeholders = ', '.join(['%s'] * len(columns_list))
-                        values = list(row.values())
-                    
-                    try:
+                        values = []
+                        for v in row.values():
+                            if v == '' or v == 'None':
+                                values.append(None)
+                            else:
+                                values.append(v)
+                
+                    with conn.cursor() as cursor:
                         cursor.execute(
                             f"INSERT INTO {table_name} ({column_str}) VALUES ({placeholders}) ON CONFLICT DO NOTHING",
                             values
                         )
-                    except Exception:
-                        # Pular linhas que causam erros (incluindo violacoes de foreign key)
-                        continue
-        conn.commit()
+                        conn.commit()
+                except Exception as e:
+                    # Pular linhas que causam erros (incluindo violacoes de foreign key)
+                    conn.rollback()
+                    print(f"Erro ao inserir linha em {table_name}: {e}")
+                    has_errors = True
+                    continue
     else:
         # usar COPY pra tabelas sem UNIQUE
-        with open(csv_path, 'r') as f:
-            with conn.cursor() as cursor:
-                if columns:
-                    column_str = ', '.join(columns)
-                    cursor.copy_expert(f"COPY {table_name} ({column_str}) FROM STDIN WITH CSV HEADER", f)
-                else:
-                    cursor.copy_expert(f"COPY {table_name} FROM STDIN WITH CSV HEADER", f)
-        conn.commit()
+        try:
+            with open(csv_path, 'r') as f:
+                with conn.cursor() as cursor:
+                    if columns:
+                        column_str = ', '.join(columns)
+                        cursor.copy_expert(f"COPY {table_name} ({column_str}) FROM STDIN WITH CSV HEADER", f)
+                    else:
+                        cursor.copy_expert(f"COPY {table_name} FROM STDIN WITH CSV HEADER", f)
+            conn.commit()
+        except Exception as e:
+            print(f"Erro ao importar {table_name}: {e}")
+            has_errors = True
+    
+    return not has_errors
 
 
 # Interface de terminal para inserir os dados, ex.:
@@ -119,6 +143,7 @@ def main():
         print("\n=== Inserindo no Banco de Dados ===")
         
         conn = get_connection()
+        has_errors = False
         try:
             if args.truncate:
                 print("Limpando tabelas existentes...")
@@ -128,29 +153,38 @@ def main():
             
             # Inserir usuarios
             print("Importando user_authentication...")
-            copy_from_csv(conn, 'user_authentication', csv_dir / 'user_authentication.csv', on_conflict=args.ignore_duplicates)
+            if not copy_from_csv(conn, 'user_authentication', csv_dir / 'user_authentication.csv', on_conflict=args.ignore_duplicates):
+                has_errors = True
             
             print("Importando user_public_profile...")
-            copy_from_csv(conn, 'user_public_profile', csv_dir / 'user_public_profile.csv', on_conflict=args.ignore_duplicates)
+            if not copy_from_csv(conn, 'user_public_profile', csv_dir / 'user_public_profile.csv', on_conflict=args.ignore_duplicates):
+                has_errors = True
             
             print("Importando user_private_profile...")
-            copy_from_csv(conn, 'user_private_profile', csv_dir / 'user_private_profile.csv', on_conflict=args.ignore_duplicates)
+            if not copy_from_csv(conn, 'user_private_profile', csv_dir / 'user_private_profile.csv', on_conflict=args.ignore_duplicates):
+                has_errors = True
             
             # ... produtos
             print("Importando products...")
-            copy_from_csv(conn, 'products', csv_dir / 'products.csv', on_conflict=args.ignore_duplicates)
+            if not copy_from_csv(conn, 'products', csv_dir / 'products.csv', on_conflict=args.ignore_duplicates):
+                has_errors = True
             
             # ... pedidos
             print("Importando orders...")
-            copy_from_csv(conn, 'orders', csv_dir / 'orders.csv', on_conflict=args.ignore_duplicates)
+            if not copy_from_csv(conn, 'orders', csv_dir / 'orders.csv', on_conflict=args.ignore_duplicates):
+                has_errors = True
             
             # ... avaliacoess
             print("Importando ratings...")
-            copy_from_csv(conn, 'ratings', csv_dir / 'ratings.csv', 
+            if not copy_from_csv(conn, 'ratings', csv_dir / 'ratings.csv', 
                          columns=['user_id', 'product_id', 'rating', 'comment', 'publication_date'],
-                         on_conflict=args.ignore_duplicates)
+                         on_conflict=args.ignore_duplicates):
+                has_errors = True
             
-            print("Banco de Dados populado com sucesso!")
+            if not has_errors:
+                print("Banco de Dados populado com sucesso!")
+            else:
+                print("Erros na importacao, cheque o log")
             
         except Exception as e:
             conn.rollback()
