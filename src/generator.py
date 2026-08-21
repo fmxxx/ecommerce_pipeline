@@ -18,6 +18,7 @@ class DataGenerator:
     def generate_users(self, count):
         # Gera usuarios com UUIDs consistentes
         user_ids = []
+        used_emails = set()
 
         with open(self.output_dir / 'user_authentication.csv', 'w', newline='') as f:
             writer = csv.writer(f)
@@ -37,8 +38,13 @@ class DataGenerator:
                         created_at = datetime.now().isoformat()
                         member_since = datetime.now().isoformat()
 
-                        # user_authentication
-                        email = self.fake.email()
+                        # user_authentication - garantir email unico
+                        while True:
+                            email = self.fake.email()
+                            if email not in used_emails:
+                                used_emails.add(email)
+                                break
+                        
                         password_hash = f'fake_hash_{self.fake.password()}'
                         writer.writerow([user_id, email, password_hash, created_at])
 
