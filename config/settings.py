@@ -1,1 +1,0 @@
-# Arquivo responsavel por ler .env e conectar python ao db
